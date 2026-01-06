@@ -3,6 +3,9 @@ from google.protobuf.message import Message
 from google.transit import gtfs_realtime_pb2
 
 from util.util import read_api_key
+from db.models import VehiclePosition
+from db.db import Session
+from sqlalchemy import select
 import time
 
 def request_vehicle_positions() -> httpx.Response:
@@ -26,17 +29,32 @@ def run():
   res = request_vehicle_positions()
   msg = response_to_pbmessage(res)
   res_timestamp = msg.header.timestamp
-  vehicles = {}
-  entity: Message
-  for ent in msg.entity:
-    entity = ent
+  vehicles = []
+  for entity in msg.entity:
     if entity.id in vehicles:
       print("duplicate")
     if entity.vehicle.HasField("trip"):
+      vehicle = entity.vehicle.vehicle
       trip = entity.vehicle.trip
       position = entity.vehicle.position
-      vehicles[entity.id] = [trip.route_id, position.latitude, position.longitude]
-  print(vehicles)
+      vehicles.append(VehiclePosition(
+        timestamp=entity.vehicle.timestamp,
+        route_id=trip.route_id,
+        vehicle_id=vehicle.id,
+        vehicle_label=vehicle.label,
+        trip_id=trip.trip_id,
+        latitude=position.latitude,
+        longitude=position.longitude,
+        speed=position.speed,
+        bearing=position.bearing,
+        odometer=position.odometer
+      ))
+  with Session() as session:
+    session.add_all(vehicles)
+    session.commit()
+    for vp in session.scalars(select(VehiclePosition)).all():
+      print(vp.__dict__)
+
   # while True:
   #   if update_cooldown >= 60:
   #     update_cooldown = 0
@@ -71,7 +89,7 @@ if __name__ == "__main__":
 #       - license_plate (string)
 #       - wheelchair_accessible (WheelchairAccessible)
 #       - id (string)
-#     - trip (Position)
+#     - position (Position)
 #       - latitude (float)
 #       - longitude (float)
 #       - bearing (float)
