@@ -2,7 +2,6 @@
 <html lang="en-US">
     <head>
         <title>Fluids in Transit</title>
-        <script src="app.js" async></script>
         <link rel="stylesheet" href="style.css">
     </head>
     <body>
@@ -12,6 +11,11 @@
             <button type="button" id="refresh-btn">Fetch</button>
         </div>
         <br>
-        <div id="vehicles"></div>
+        <div id="vehicles">
+            <canvas id="canvas" width="500" height="500">
+                Vehicle positions should be plotted here.
+            </canvas>
+        </div>
     </body>
+    <script src="app.js" async></script>
 </html>

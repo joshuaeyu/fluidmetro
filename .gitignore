@@ -1,4 +1,7 @@
-private
 __pycache__
 .vscode
 .DS_Store
+
+.venv
+
+private

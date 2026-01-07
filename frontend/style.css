@@ -2,3 +2,7 @@ body {
     font-family: sans-serif;
     background-color: lightcyan;
 }
+
+canvas {
+    border: 1px solid black;
+}
