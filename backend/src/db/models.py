@@ -10,6 +10,7 @@ class VehiclePosition(Base):
 
     timestamp_fetch: Mapped[int] = mapped_column(index=True)
     timestamp: Mapped[int] = mapped_column(index=True)
+    batch_id: Mapped[int]
     
     trip_id: Mapped[str | None]
     route_id: Mapped[str | None]

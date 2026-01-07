@@ -14,6 +14,7 @@ from ..util.util import read_api_key
 CACHE_PATH: pathlib.Path = pathlib.Path(__file__).parents[2].joinpath("data/cache.pkl").resolve()
 FETCH_INTERVAL: int = 60
 MAX_NUM_RECORDS: int = 1_000_000
+BATCH_ID: str
 
 current_vehicles: list[VehiclePosition] = []
 
@@ -35,6 +36,7 @@ def convert_msg_to_objects(message: Message) -> list[VehiclePosition]:
       trip_msg = entity.vehicle.trip
       position_msg = entity.vehicle.position
       vehicle = VehiclePosition(
+        batch_id=BATCH_ID,
         timestamp_fetch=message.header.timestamp,
         timestamp=entity.vehicle.timestamp,
         trip_id=trip_msg.trip_id,
@@ -57,6 +59,11 @@ def save_to_cache(vehicles: dict[str, VehiclePosition]) -> None:
 def load_from_cache() -> dict[str, VehiclePosition]:
   with open(CACHE_PATH, 'rb') as file:
     return pkl.load(file)
+
+def init() -> None:
+  global BATCH_ID
+  BATCH_ID = str(int(time.time()))
+  create_db_and_tables()
 
 # While running, fetch positions every 60 seconds and update database
 def run() -> None:
@@ -85,7 +92,7 @@ def run() -> None:
     time.sleep(FETCH_INTERVAL)
 
 if __name__ == "__main__":
-  create_db_and_tables()
+  init()
   run()
 
 # message (FeedMessage)

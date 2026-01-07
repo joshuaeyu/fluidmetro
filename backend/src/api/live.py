@@ -9,14 +9,14 @@ from ..services.fetcher import load_from_cache, CACHE_PATH
 
 router = APIRouter()
 
-@router.get("/vehicleposition/live/{vehicle_id}", response_model=None)
+@router.get("/live", response_model=None)
+def get_vehiclepositions():
+    return load_from_cache()
+
+@router.get("/live/{vehicle_id}", response_model=None)
 def get_vehicleposition(vehicle_id: str) -> VehiclePosition | None:
     vehicle_dict = load_from_cache()
     return vehicle_dict.get(vehicle_id)
-
-@router.get("/vehicleposition/live", response_model=None)
-def get_vehiclepositions():
-    return load_from_cache()
 
 # @router.get("/vehiclepositions/history/{vehicle_id}", response_model=None)
 # def get_vehicleposition(vp_id: int) -> VehiclePosition | None:
