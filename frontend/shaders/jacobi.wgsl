@@ -22,13 +22,15 @@ override N: f32;
 fn jacobi(
     fragIn: VertexOut
 ) -> @location(0) f32 {
-    let i = fragIn.position.x;
-    let j = fragIn.position.y;
+    let i = fragIn.uv.x;
+    let j = fragIn.uv.y;
+    let di = 1 / (M + 2);
+    let dj = 1 / (N + 2);
     let x0 = textureSample(x0_tex, tex_sampler, vec2(i,j)).r;
-    let x_e = textureSample(x_tex, tex_sampler, vec2(i,j+1)).r;
-    let x_w = textureSample(x_tex, tex_sampler, vec2(i,j-1)).r;
-    let x_n = textureSample(x_tex, tex_sampler, vec2(i+1,j)).r;
-    let x_s = textureSample(x_tex, tex_sampler, vec2(i-1,j)).r;
+    let x_e = textureSample(x_tex, tex_sampler, vec2(i+di,j)).r;
+    let x_w = textureSample(x_tex, tex_sampler, vec2(i-di,j)).r;
+    let x_n = textureSample(x_tex, tex_sampler, vec2(i,j+dj)).r;
+    let x_s = textureSample(x_tex, tex_sampler, vec2(i,j-dj)).r;
     let result = (x0 + uniforms.a * (x_n + x_s + x_e + x_w)) / uniforms.c;
     return result;
 }
@@ -36,13 +38,15 @@ fn jacobi(
 fn jacobi_vec2(
     fragIn: VertexOut
 ) -> @location(0) vec2f {
-    let i = fragIn.position.x;
-    let j = fragIn.position.y;
+    let i = fragIn.uv.x;
+    let j = fragIn.uv.y;
+    let di = 1 / (M + 2);
+    let dj = 1 / (N + 2);
     let x0 = textureSample(x0_tex, tex_sampler, vec2(i,j)).rg;
-    let x_e = textureSample(x_tex, tex_sampler, vec2(i,j+1)).rg;
-    let x_w = textureSample(x_tex, tex_sampler, vec2(i,j-1)).rg;
-    let x_n = textureSample(x_tex, tex_sampler, vec2(i+1,j)).rg;
-    let x_s = textureSample(x_tex, tex_sampler, vec2(i-1,j)).rg;
+    let x_e = textureSample(x_tex, tex_sampler, vec2(i+di,j)).rg;
+    let x_w = textureSample(x_tex, tex_sampler, vec2(i-di,j)).rg;
+    let x_n = textureSample(x_tex, tex_sampler, vec2(i,j+dj)).rg;
+    let x_s = textureSample(x_tex, tex_sampler, vec2(i,j-dj)).rg;
     let result = (x0 + uniforms.a * (x_n + x_s + x_e + x_w)) / uniforms.c;
     return result;
 }

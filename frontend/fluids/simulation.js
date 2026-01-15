@@ -3,9 +3,10 @@ import { webGpuContext } from "./context.js";
 export class SimulationApp {
     settings;
     resources = {};
-    bindGroups = {}; 
-    pipelines = {};
-    renderPassDescriptors = {};
+    densityTextureOutputIdx = 0;
+    #bindGroups = {}; 
+    #pipelines = {};
+    #renderPassDescriptors = {};
 
     constructor(settings) {
         this.settings = settings;
@@ -17,58 +18,55 @@ export class SimulationApp {
         return app;
     }
 
-    async addSource(textureArray, idx) {
-        const data = new Float32Array(textureArray.width * textureArray.height);
-        for (let i = 0; i < data.length/2; i++) {
-            data[i] = 1;
-        }
+    async addSource(textureArray, idx, sourceDataArray) {
         webGpuContext.device.queue.writeTexture(
             { 
                 texture: textureArray,
                 origin: [0, 0, idx],
             }, 
-            data, 
+            sourceDataArray, 
             {
                 bytesPerRow: textureArray.width * 4,
             }, 
             {
                 width: textureArray.width,
-                height: textureArray.height
+                height: textureArray.height,
             });
     }
 
     async densityStep() {
-        // Density step command buffer
-        const densityStepCommandEncoder = webGpuContext.device.createCommandEncoder();
+        // Advection + diffusion command buffer
+        const advectDiffuseCommandEncoder = webGpuContext.device.createCommandEncoder();
 
         // Advection: d0,v0 -> d1
-        const advectionEncoder = densityStepCommandEncoder.beginRenderPass(this.renderPassDescriptors.density[1]); // Target texture
-        advectionEncoder.setPipeline(this.pipelines.advect); // Operation
+        const advectionEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.density[1]); // Target texture
+        advectionEncoder.setPipeline(this.#pipelines.advect); // Operation
         advectionEncoder.setVertexBuffer(0, this.resources.vertexBuffer);
-        advectionEncoder.setBindGroup(0, this.bindGroups.sampler);
-        advectionEncoder.setBindGroup(1, this.bindGroups.density[0]); // Input 1 (density is advected)
-        advectionEncoder.setBindGroup(2, this.bindGroups.velocity[0]); // Input 2 (along the characteristic (velocity field))
+        advectionEncoder.setBindGroup(0, this.#bindGroups.sampler);
+        advectionEncoder.setBindGroup(1, this.#bindGroups.density[0]); // Input 1 (density is advected)
+        advectionEncoder.setBindGroup(2, this.#bindGroups.velocity[0]); // Input 2 (along the characteristic (velocity field))
         advectionEncoder.draw(6);
         advectionEncoder.end();
         
-        // Diffusion: d1,d2 -> d0; d1,d0 -> d2; d1,d2 -> d0; ...
-        let tgt_idx = 0;
+        // Diffusion: d1,d0 -> d2; d1,d2 -> d0; ...
+        const a = this.settings.dt * this.settings.diffusivity * this.settings.M * this.settings.N;
+        const c = 1 + 4 * a;
+        this.resources.uniformValues.set([a, c]);
+        webGpuContext.device.queue.writeBuffer(this.resources.uniformBuffer, 0, this.resources.uniformValues);
         for (let k = 0; k < 20; k++) {
-            const diffusionEncoder = densityStepCommandEncoder.beginRenderPass(renderPassDescriptors.density[tgt_idx]); // Target texture
-            diffusionEncoder.setPipeline(pipelines.jacobi); // Operation
+            this.densityTextureOutputIdx = 2 - this.densityTextureOutputIdx;
+            const diffusionEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.density[this.densityTextureOutputIdx]); // Target texture
+            diffusionEncoder.setPipeline(this.#pipelines.jacobi); // Operation
             diffusionEncoder.setVertexBuffer(0, this.resources.vertexBuffer);
-            diffusionEncoder.setBindGroup(0, this.bindGroups.sampler);
-            diffusionEncoder.setBindGroup(1, this.bindGroups.density[1]); // Input 1 (density initial state)
-            diffusionEncoder.setBindGroup(2, this.bindGroups.density[2-tgt_idx]); // Input 2 (density feedback (current guess))
-            diffusionEncoder.setBindGroup(3, this.bindGroups.uniform); // a, c values
+            diffusionEncoder.setBindGroup(0, this.#bindGroups.sampler);
+            diffusionEncoder.setBindGroup(1, this.#bindGroups.density[1]); // Input 1 (density initial state)
+            diffusionEncoder.setBindGroup(2, this.#bindGroups.density[2-this.densityTextureOutputIdx]); // Input 2 (density feedback (current guess))
+            diffusionEncoder.setBindGroup(3, this.#bindGroups.uniform); // a, c values
             diffusionEncoder.draw(6);
             diffusionEncoder.end();
-            tgt_idx = 2 - tgt_idx;
         }
-        
-        const densityStepCommandBuffer = densityStepCommandEncoder.finish();
 
-        webGpuContext.device.queue.submit([densityStepCommandBuffer]);
+        webGpuContext.device.queue.submit([advectDiffuseCommandEncoder.finish()]);
     }
 
     async velocityStep() {
@@ -77,10 +75,10 @@ export class SimulationApp {
 
         // // Advection: d0,v0 -> d1
         // advectionEncoder = velocityStepCommandEncoder.beginRenderPass(densityPassDescriptors[1]); // Target texture
-        // advectionEncoder.setPipeline(pipelines.advect); // Operation
+        // advectionEncoder.setPipeline(#pipelines.advect); // Operation
         // advectionEncoder.setVertexBuffer(0, vertexBuffer);
         // advectionEncoder.setBindGroup(0, sampler);
-        // advectionEncoder.setBindGroup(1, this.bindGroups.density[0]); // Input 1 (density is advected)
+        // advectionEncoder.setBindGroup(1, this.#bindGroups.density[0]); // Input 1 (density is advected)
         // advectionEncoder.setBindGroup(2, velocityBindGroups[0]); // Input 2 (along the characteristic (velocity field))
         // advectionEncoder.draw(6);
         // advectionEncoder.end();
@@ -92,9 +90,9 @@ export class SimulationApp {
         //     diffusionEncoder.setPipeline(jacobiPipeline); // Operation
         //     diffusionEncoder.setVertexBuffer(0, vertexBuffer);
         //     diffusionEncoder.setBindGroup(0, sampler);
-        //     diffusionEncoder.setBindGroup(1, this.bindGroups.density[1]); // Input 1 (density initial state)
-        //     diffusionEncoder.setBindGroup(2, this.bindGroups.density[2-tgt_idx]); // Input 2 (density feedback (current guess))
-        //     diffusionEncoder.setBindGroup(3, this.bindGroups.uniform); // a, c values
+        //     diffusionEncoder.setBindGroup(1, this.#bindGroups.density[1]); // Input 1 (density initial state)
+        //     diffusionEncoder.setBindGroup(2, this.#bindGroups.density[2-tgt_idx]); // Input 2 (density feedback (current guess))
+        //     diffusionEncoder.setBindGroup(3, this.#bindGroups.uniform); // a, c values
         //     diffusionEncoder.draw(6);
         //     diffusionEncoder.end();
         //     tgt_idx = 2 - tgt_idx;
@@ -103,24 +101,24 @@ export class SimulationApp {
         // // Projection
         // // 
         // const divergenceEncoder = velocityStepCommandEncoder.beginRenderPass(densityPassDescriptors[tgt_idx]); // Target texture
-        // divergenceEncoder.setPipeline(pipelines.divergence);
+        // divergenceEncoder.setPipeline(#pipelines.divergence);
         // divergenceEncoder.setBindGroup(0, sampler);
-        // divergenceEncoder.setBindGroup(1, this.bindGroups.density[1]); // Input 1 (density initial state)
-        // divergenceEncoder.setBindGroup(2, this.bindGroups.density[2-tgt_idx]); // Input 2 (density feedback (current guess))
+        // divergenceEncoder.setBindGroup(1, this.#bindGroups.density[1]); // Input 1 (density initial state)
+        // divergenceEncoder.setBindGroup(2, this.#bindGroups.density[2-tgt_idx]); // Input 2 (density feedback (current guess))
         // divergenceEncoder.draw(6);
         // divergenceEncoder.end();
         // const pressureEncoder = velocityStepCommandEncoder.beginRenderPass(densityPassDescriptors[tgt_idx]); // Target texture
         // pressureEncoder.setPipeline(jacobiPipeline);
         // pressureEncoder.setBindGroup(0, sampler);
-        // pressureEncoder.setBindGroup(1, this.bindGroups.density[1]); // Input 1 (density initial state)
-        // pressureEncoder.setBindGroup(2, this.bindGroups.density[2-tgt_idx]); // Input 2 (density feedback (current guess))
+        // pressureEncoder.setBindGroup(1, this.#bindGroups.density[1]); // Input 1 (density initial state)
+        // pressureEncoder.setBindGroup(2, this.#bindGroups.density[2-tgt_idx]); // Input 2 (density feedback (current guess))
         // pressureEncoder.draw(6);
         // pressureEncoder.end();
         // const subgradEncoder = velocityStepCommandEncoder.beginRenderPass(densityPassDescriptors[tgt_idx]); // Target texture
         // subgradEncoder.setPipeline(subtractGradientPipeline);
         // subgradEncoder.setBindGroup(0, sampler);
-        // subgradEncoder.setBindGroup(1, this.bindGroups.density[1]); // Input 1 (density initial state)
-        // subgradEncoder.setBindGroup(2, this.bindGroups.density[2-tgt_idx]); // Input 2 (density feedback (current guess))
+        // subgradEncoder.setBindGroup(1, this.#bindGroups.density[1]); // Input 1 (density initial state)
+        // subgradEncoder.setBindGroup(2, this.#bindGroups.density[2-tgt_idx]); // Input 2 (density feedback (current guess))
         // subgradEncoder.draw(6);
         // subgradEncoder.end();
         
@@ -128,7 +126,7 @@ export class SimulationApp {
     }
 
     async getDensityOutputTextureView() {
-        return this.resources.densityTextureViews[1];
+        return this.resources.densityTextureViews[this.densityTextureOutputIdx];
     }
 
     async getVelocityOutputTextureView() {
@@ -174,6 +172,9 @@ export class SimulationApp {
         const vertexShaderModule = webGpuContext.device.createShaderModule({
             code: await fetch("./shaders/render.wgsl", {cache: "reload"}).then(r => r.text()),
         });
+        const addsrcShaderModule = webGpuContext.device.createShaderModule({
+            code: await fetch("./shaders/add.wgsl", {cache: "reload"}).then(r => r.text()),
+        });
         const jacobiShaderModule = webGpuContext.device.createShaderModule({
             code: await fetch("./shaders/jacobi.wgsl", {cache: "reload"}).then(r => r.text()),
         });
@@ -191,14 +192,14 @@ export class SimulationApp {
         this.resources.velocityTextureArray = webGpuContext.device.createTexture({
             dimension: "2d",
             format: "rg32float",
-            size: [canvas.width, canvas.height, 3],
+            size: [this.settings.M + 2, this.settings.N + 2, 3],
             usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
             label: "velocity",
         });
         this.resources.densityTextureArray = webGpuContext.device.createTexture({
             dimension: "2d",
             format: "r32float",
-            size: [canvas.width, canvas.height, 3],
+            size: [this.settings.M + 2, this.settings.N + 2, 3],
             usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
             label: "density",
         });
@@ -216,12 +217,11 @@ export class SimulationApp {
         );
 
         // Uniform buffer - a, c
-        const uniformBufferSize = 2 * 4;
+        this.resources.uniformValues = new Float32Array(2);
         this.resources.uniformBuffer = webGpuContext.device.createBuffer({
-            size: uniformBufferSize,
+            size: this.resources.uniformValues.byteLength,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
-        this.resources.uniformValues = new Float32Array([1, 1]);
         
         // Bind group layouts
         const samplerBindGroupLayout = webGpuContext.device.createBindGroupLayout({
@@ -249,19 +249,21 @@ export class SimulationApp {
                 {
                     binding: 0,
                     visibility: GPUShaderStage.FRAGMENT,
-                    buffer: { type: "uniform" },
+                    buffer: { 
+                        type: "uniform" 
+                    },
                 },
             ],
         });
 
         // Bind groups
-        this.bindGroups.sampler = webGpuContext.device.createBindGroup({
+        this.#bindGroups.sampler = webGpuContext.device.createBindGroup({
             layout: samplerBindGroupLayout,
             entries: [
                 { binding: 0, resource: this.resources.sampler },
             ],
         });
-        this.bindGroups.velocity = [0,1,2].map(
+        this.#bindGroups.velocity = [0,1,2].map(
             (i) => webGpuContext.device.createBindGroup({
                 layout: textureBindGroupLayout,
                 entries: [
@@ -269,22 +271,22 @@ export class SimulationApp {
                 ],
             }),
         );
-        this.bindGroups.density = [0,1,2].map(
+        this.#bindGroups.density = [0,1,2].map(
             (i) => webGpuContext.device.createBindGroup({
                 layout: textureBindGroupLayout,
                 entries: [
-                    { binding: 0, resource: this.resources.velocityTextureViews[i] },
+                    { binding: 0, resource: this.resources.densityTextureViews[i] },
                 ],
             }),
         );
-        this.bindGroups.uniform = webGpuContext.device.createBindGroup({
+        this.#bindGroups.uniform = webGpuContext.device.createBindGroup({
             layout: uniformBindGroupLayout,
             entries: [
                 { binding: 0, resource: { buffer: this.resources.uniformBuffer } },
             ],
         });
 
-        // Simulaton render pipelines
+        // Simulaton render #pipelines
         const pipelineLayout = webGpuContext.device.createPipelineLayout({
             bindGroupLayouts: [samplerBindGroupLayout, textureBindGroupLayout, textureBindGroupLayout],
         });
@@ -299,31 +301,30 @@ export class SimulationApp {
 
         const constants = { dt: this.settings.dt, M: this.settings.M, N: this.settings.N };
 
-        this.pipelines.jacobi = this.#createSimulationPipeline(jacobiPipelineLayout, vertexStageDescriptor, jacobiShaderModule, "jacobi", "r32float", constants);
-        this.pipelines.jacobiVec2 = this.#createSimulationPipeline(jacobiPipelineLayout, vertexStageDescriptor, jacobiShaderModule, "jacobi_vec2", "rg32float", constants);
-        this.pipelines.advect = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, advectShaderModule, "advect", "r32float", constants);
-        this.pipelines.advectVec2 = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, advectShaderModule, "advect_vec2", "rg32float", constants);
-        this.pipelines.divergence = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, divergenceShaderModule, "divergence", "r32float", constants);
-        this.pipelines.subgrad = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, subgradShaderModule, "subtract_gradient", "rg32float", constants);
+        this.#pipelines.add = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, addsrcShaderModule, "add_source", "r32float", constants);
+        this.#pipelines.addVec2 = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, addsrcShaderModule, "add_source_vec2", "rg32float", constants);
+        this.#pipelines.jacobi = this.#createSimulationPipeline(jacobiPipelineLayout, vertexStageDescriptor, jacobiShaderModule, "jacobi", "r32float", constants);
+        this.#pipelines.jacobiVec2 = this.#createSimulationPipeline(jacobiPipelineLayout, vertexStageDescriptor, jacobiShaderModule, "jacobi_vec2", "rg32float", constants);
+        this.#pipelines.advect = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, advectShaderModule, "advect", "r32float", constants);
+        this.#pipelines.advectVec2 = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, advectShaderModule, "advect_vec2", "rg32float", constants);
+        this.#pipelines.divergence = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, divergenceShaderModule, "divergence", "r32float", constants);
+        this.#pipelines.subgrad = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, subgradShaderModule, "subtract_gradient", "rg32float", constants);
 
         // Simulation render pass descriptors
-        this.renderPassDescriptors.velocity = [0,1,2].map(
+        this.#renderPassDescriptors.velocity = [0,1,2].map(
             (i) => ({
                 colorAttachments: [
                     { loadOp: "clear", storeOp: "store", view: this.resources.velocityTextureViews[i] },
                 ],
             })
         );
-        this.renderPassDescriptors.density = [0,1,2].map(
+        this.#renderPassDescriptors.density = [0,1,2].map(
             (i) => ({
                 colorAttachments: [
                     { loadOp: "clear", storeOp: "store", view: this.resources.densityTextureViews[i] },
                 ],
             })
         );
-
-        // densityStep();
-        await this.addSource(this.resources.densityTextureArray, 1);
     }
 
     #createSimulationPipeline(layout, vertex, module, entryPoint, format, constants) {

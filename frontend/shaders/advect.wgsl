@@ -16,7 +16,7 @@ override N: f32;
 fn advect(
     fragIn: VertexOut
 ) -> @location(0) f32 {
-    let start_pos = fragIn.position.xy - dt * textureSample(velocity_tex, tex_sampler, fragIn.position.xy).rg;
+    let start_pos = fragIn.uv - dt * textureSample(velocity_tex, tex_sampler, fragIn.uv).rg;
     let start_val = textureSample(x_tex, tex_sampler, start_pos).r;
     return start_val;
 }
@@ -24,7 +24,7 @@ fn advect(
 fn advect_vec2(
     fragIn: VertexOut
 ) -> @location(0) vec2f {
-    let start_pos = fragIn.position.xy - dt * textureSample(velocity_tex, tex_sampler, fragIn.position.xy).rg;
-    let start_val = textureSample(x_tex, tex_sampler, start_pos).xy;
+    let start_pos = fragIn.uv - dt * textureSample(velocity_tex, tex_sampler, fragIn.uv).rg;
+    let start_val = textureSample(x_tex, tex_sampler, start_pos).rg;
     return start_val;
 }

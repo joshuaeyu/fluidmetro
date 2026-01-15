@@ -3,8 +3,8 @@ import { webGpuContext } from "./context.js";
 export class RenderApp {
     settings;
     resources = {};
-    renderPipeline;
-    bindGroupLayout;
+    #renderPipeline;
+    #bindGroupLayout;
 
     constructor(settings) {
         this.settings = settings;
@@ -16,10 +16,10 @@ export class RenderApp {
         return app;
     }
 
-    async render(textureView) {
+    render(textureView) {
         // Bind group
         const bindGroup = webGpuContext.device.createBindGroup({
-            layout: this.bindGroupLayout,
+            layout: this.#bindGroupLayout,
             entries: [
                 {
                     binding: 0,
@@ -46,15 +46,14 @@ export class RenderApp {
             ],
         });
 
-        renderPassEncoder.setPipeline(this.renderPipeline);
+        renderPassEncoder.setPipeline(this.#renderPipeline);
         renderPassEncoder.setVertexBuffer(0, this.resources.vertexBuffer);
         renderPassEncoder.setBindGroup(0, bindGroup);
         renderPassEncoder.draw(6);
         renderPassEncoder.end();
-
-        const renderCommandBuffer = commandEncoder.finish();
-
-        webGpuContext.device.queue.submit([renderCommandBuffer]);
+        
+        // Submit
+        webGpuContext.device.queue.submit([commandEncoder.finish()]);
     }
 
     async #initRenderPipeline() {
@@ -109,7 +108,7 @@ export class RenderApp {
         })
 
         // Texture/sampler bind group
-        this.bindGroupLayout = webGpuContext.device.createBindGroupLayout({
+        this.#bindGroupLayout = webGpuContext.device.createBindGroupLayout({
             entries: [
                 {
                     binding: 0,
@@ -142,10 +141,10 @@ export class RenderApp {
             },
             // layout: "auto",
             layout: webGpuContext.device.createPipelineLayout({
-                bindGroupLayouts: [this.bindGroupLayout]
+                bindGroupLayouts: [this.#bindGroupLayout]
             }),
         };
 
-        this.renderPipeline = webGpuContext.device.createRenderPipeline(pipelineDescriptor);
+        this.#renderPipeline = webGpuContext.device.createRenderPipeline(pipelineDescriptor);
     }
 }
