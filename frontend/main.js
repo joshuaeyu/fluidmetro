@@ -1,4 +1,5 @@
-// import { fetchVehiclePositions } from "./app.js"
+"use strict";
+
 import { webGpuContext } from "./fluids/context.js";
 import { RenderApp } from "./fluids/render.js";
 import { SimulationApp } from "./fluids/simulation.js";

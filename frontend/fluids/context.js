@@ -1,3 +1,5 @@
+"use strict";
+
 class WebGpuContext {
     canvas;
     device;
