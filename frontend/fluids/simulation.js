@@ -37,16 +37,16 @@ export class SimulationApp {
                 height: this.resources.densityTextureArray.height,
             });
         // Add source (densityTextureArray[2]) to existing density field (densityTextureArray[this.densityOutIdx])
-        const addsrcCommandEncoder = webGpuContext.device.createCommandEncoder();
-        const addsrcEncoder = addsrcCommandEncoder.beginRenderPass(this.#renderPassDescriptors.density[1-this.densityOutIdx]);
-        addsrcEncoder.setPipeline(this.#pipelines.addsrc);
-        addsrcEncoder.setVertexBuffer(0, this.resources.quadVertexBuffer);
-        addsrcEncoder.setBindGroup(0, this.#bindGroups.sampler);
-        addsrcEncoder.setBindGroup(1, this.#bindGroups.density[this.densityOutIdx]);
-        addsrcEncoder.setBindGroup(2, this.#bindGroups.density[2]);
-        addsrcEncoder.draw(6);
-        addsrcEncoder.end();
-        webGpuContext.device.queue.submit([addsrcCommandEncoder.finish()]);
+        const sourceCommandEncoder = webGpuContext.device.createCommandEncoder();
+        const sourceEncoder = sourceCommandEncoder.beginRenderPass(this.#renderPassDescriptors.density[1-this.densityOutIdx]);
+        sourceEncoder.setPipeline(this.#pipelines.source);
+        sourceEncoder.setVertexBuffer(0, this.resources.quadVertexBuffer);
+        sourceEncoder.setBindGroup(0, this.#bindGroups.sampler);
+        sourceEncoder.setBindGroup(1, this.#bindGroups.density[this.densityOutIdx]);
+        sourceEncoder.setBindGroup(2, this.#bindGroups.density[2]);
+        sourceEncoder.draw(6);
+        sourceEncoder.end();
+        webGpuContext.device.queue.submit([sourceCommandEncoder.finish()]);
         this.densityOutIdx = 1 - this.densityOutIdx;
     }
 
@@ -64,18 +64,19 @@ export class SimulationApp {
             {
                 width: this.resources.velocityTextureArray.width,
                 height: this.resources.velocityTextureArray.height,
-            });
+            }
+        );
         // Add source (velocityTextureArray[2]) to existing density field (velocityTextureArray[this.velocityOutIdx])
-        const addsrcCommandEncoder = webGpuContext.device.createCommandEncoder();
-        const addsrcEncoder = addsrcCommandEncoder.beginRenderPass(this.#renderPassDescriptors.velocity[1-this.velocityOutIdx]);
-        addsrcEncoder.setPipeline(this.#pipelines.addsrcVec2);
-        addsrcEncoder.setVertexBuffer(0, this.resources.quadVertexBuffer);
-        addsrcEncoder.setBindGroup(0, this.#bindGroups.sampler);
-        addsrcEncoder.setBindGroup(1, this.#bindGroups.velocity[this.velocityOutIdx]);
-        addsrcEncoder.setBindGroup(2, this.#bindGroups.velocity[2]);
-        addsrcEncoder.draw(6);
-        addsrcEncoder.end();
-        webGpuContext.device.queue.submit([addsrcCommandEncoder.finish()]);
+        const sourceCommandEncoder = webGpuContext.device.createCommandEncoder();
+        const sourceEncoder = sourceCommandEncoder.beginRenderPass(this.#renderPassDescriptors.velocity[1-this.velocityOutIdx]);
+        sourceEncoder.setPipeline(this.#pipelines.sourceVec2);
+        sourceEncoder.setVertexBuffer(0, this.resources.quadVertexBuffer);
+        sourceEncoder.setBindGroup(0, this.#bindGroups.sampler);
+        sourceEncoder.setBindGroup(1, this.#bindGroups.velocity[this.velocityOutIdx]);
+        sourceEncoder.setBindGroup(2, this.#bindGroups.velocity[2]);
+        sourceEncoder.draw(6);
+        sourceEncoder.end();
+        webGpuContext.device.queue.submit([sourceCommandEncoder.finish()]);
         this.velocityOutIdx = 1 - this.velocityOutIdx;
     }
 
@@ -94,19 +95,19 @@ export class SimulationApp {
         advectionEncoder.draw(6);
         advectionEncoder.end();
         // // - set bound: d1 -> d2
-        // const setbndEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.density[2]); // Target texture
-        // setbndEncoder.setPipeline(this.#pipelines.setbnd); // Operation
-        // setbndEncoder.setVertexBuffer(0, this.resources.lineVertexBuffer);
-        // setbndEncoder.setBindGroup(0, this.#bindGroups.sampler);
-        // setbndEncoder.setBindGroup(1, this.#bindGroups.density[this.densityOutIdx]); // Input 1 (density is advected)
-        // setbndEncoder.draw(5);
-        // setbndEncoder.end();
+        // const boundEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.density[2]); // Target texture
+        // boundEncoder.setPipeline(this.#pipelines.bound); // Operation
+        // boundEncoder.setVertexBuffer(0, this.resources.lineVertexBuffer);
+        // boundEncoder.setBindGroup(0, this.#bindGroups.sampler);
+        // boundEncoder.setBindGroup(1, this.#bindGroups.density[this.densityOutIdx]); // Input 1 (density is advected)
+        // boundEncoder.draw(5);
+        // boundEncoder.end();
 
         // Diffusion
         const a = this.settings.dt * this.settings.dissipation * this.settings.diffusivity * this.settings.M * this.settings.N;
         const c = 1 + 4 * a / this.settings.dissipation;
-        this.resources.uniformValues.set([a, c]);
-        webGpuContext.device.queue.writeBuffer(this.resources.uniformBuffer, 0, this.resources.uniformValues);
+        this.resources.jacobiUniformValues.set([a, c]);
+        webGpuContext.device.queue.writeBuffer(this.resources.jacobiUniformBuffer, 0, this.resources.jacobiUniformValues);
         for (let k = 0; k < 40; k++) {
             // - diffuse: d2 constant; d0 -> d1, d1 -> d0, ...
             const diffusionEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.density[1-this.densityOutIdx]); // Target texture
@@ -115,18 +116,18 @@ export class SimulationApp {
             diffusionEncoder.setBindGroup(0, this.#bindGroups.sampler);
             diffusionEncoder.setBindGroup(1, this.#bindGroups.density[2]); // Input 1 (density initial state)
             diffusionEncoder.setBindGroup(2, this.#bindGroups.density[this.densityOutIdx]); // Input 2 (density feedback (current guess))
-            diffusionEncoder.setBindGroup(3, this.#bindGroups.uniform); // a, c values
+            diffusionEncoder.setBindGroup(3, this.#bindGroups.jacobiUniform); // a, c values
             diffusionEncoder.draw(6);
             diffusionEncoder.end();
             this.densityOutIdx = 1 - this.densityOutIdx;
             // // - set bound
-            // const setbndEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.density[1-this.densityOutIdx]); // Target texture
-            // setbndEncoder.setPipeline(this.#pipelines.setbnd); // Operation
-            // setbndEncoder.setVertexBuffer(0, this.resources.lineVertexBuffer);
-            // setbndEncoder.setBindGroup(0, this.#bindGroups.sampler);
-            // setbndEncoder.setBindGroup(1, this.#bindGroups.density[this.densityOutIdx]); // Input 1 (density is advected)
-            // setbndEncoder.draw(5);
-            // setbndEncoder.end();
+            // const boundEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.density[1-this.densityOutIdx]); // Target texture
+            // boundEncoder.setPipeline(this.#pipelines.bound); // Operation
+            // boundEncoder.setVertexBuffer(0, this.resources.lineVertexBuffer);
+            // boundEncoder.setBindGroup(0, this.#bindGroups.sampler);
+            // boundEncoder.setBindGroup(1, this.#bindGroups.density[this.densityOutIdx]); // Input 1 (density is advected)
+            // boundEncoder.draw(5);
+            // boundEncoder.end();
             // this.densityOutIdx = 1 - this.densityOutIdx;
         }
 
@@ -134,6 +135,24 @@ export class SimulationApp {
     }
 
     async velocityStep() {
+        // Zero out scratch space
+        const zeros = new Float32Array(this.resources.scratchTextureArray.width * this.resources.scratchTextureArray.height * this.resources.scratchTextureArray.depthOrArrayLayers);
+        webGpuContext.device.queue.writeTexture(
+            { 
+                texture: this.resources.scratchTextureArray,
+            }, 
+            zeros, 
+            {
+                bytesPerRow: this.resources.scratchTextureArray.width * 4,
+                rowsPerImage: this.resources.scratchTextureArray.height,
+            }, 
+            {
+                width: this.resources.scratchTextureArray.width,
+                height: this.resources.scratchTextureArray.height,
+                depthOrArrayLayers: this.resources.scratchTextureArray.depthOrArrayLayers,
+            }
+        );
+
         // Advection + diffusion command buffer
         const advectDiffuseCommandEncoder = webGpuContext.device.createCommandEncoder();
 
@@ -149,19 +168,19 @@ export class SimulationApp {
         advectionEncoder.end();
         // this.densityOutIdx = 1 - this.densityOutIdx;
         // // - set bound: d1 -> d2
-        // const setbndEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.density[2]); // Target texture
-        // setbndEncoder.setPipeline(this.#pipelines.setbnd); // Operation
-        // setbndEncoder.setVertexBuffer(0, this.resources.lineVertexBuffer);
-        // setbndEncoder.setBindGroup(0, this.#bindGroups.sampler);
-        // setbndEncoder.setBindGroup(1, this.#bindGroups.density[this.densityOutIdx]); // Input 1 (density is advected)
-        // setbndEncoder.draw(5);
-        // setbndEncoder.end();
+        // const boundEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.density[2]); // Target texture
+        // boundEncoder.setPipeline(this.#pipelines.bound); // Operation
+        // boundEncoder.setVertexBuffer(0, this.resources.lineVertexBuffer);
+        // boundEncoder.setBindGroup(0, this.#bindGroups.sampler);
+        // boundEncoder.setBindGroup(1, this.#bindGroups.density[this.densityOutIdx]); // Input 1 (density is advected)
+        // boundEncoder.draw(5);
+        // boundEncoder.end();
 
         // Diffusion
         const a = this.settings.dt * this.settings.viscosity * this.settings.M * this.settings.N;
         const c = 1 + 4 * a;
-        this.resources.uniformValues.set([a, c]);
-        webGpuContext.device.queue.writeBuffer(this.resources.uniformBuffer, 0, this.resources.uniformValues);
+        this.resources.jacobiUniformValues.set([a, c]);
+        webGpuContext.device.queue.writeBuffer(this.resources.jacobiUniformBuffer, 0, this.resources.jacobiUniformValues);
         for (let k = 0; k < 40; k++) {
             // - diffuse: v2 constant; v0 -> v1, v1 -> v0, ...
             const diffusionEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.velocity[1-this.velocityOutIdx]); // Target texture
@@ -170,24 +189,29 @@ export class SimulationApp {
             diffusionEncoder.setBindGroup(0, this.#bindGroups.sampler);
             diffusionEncoder.setBindGroup(1, this.#bindGroups.velocity[2]); // Input 1 (velocity initial state)
             diffusionEncoder.setBindGroup(2, this.#bindGroups.velocity[this.velocityOutIdx]); // Input 2 (velocity feedback (current guess))
-            diffusionEncoder.setBindGroup(3, this.#bindGroups.uniform); // a, c values
+            diffusionEncoder.setBindGroup(3, this.#bindGroups.jacobiUniform); // a, c values
             diffusionEncoder.draw(6);
             diffusionEncoder.end();
             this.velocityOutIdx = 1 - this.velocityOutIdx;
             // // - set bound
-            // const setbndEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.density[1-this.densityOutIdx]); // Target texture
-            // setbndEncoder.setPipeline(this.#pipelines.setbnd); // Operation
-            // setbndEncoder.setVertexBuffer(0, this.resources.lineVertexBuffer);
-            // setbndEncoder.setBindGroup(0, this.#bindGroups.sampler);
-            // setbndEncoder.setBindGroup(1, this.#bindGroups.density[this.densityOutIdx]); // Input 1 (density is advected)
-            // setbndEncoder.draw(5);
-            // setbndEncoder.end();
+            // const boundEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.density[1-this.densityOutIdx]); // Target texture
+            // boundEncoder.setPipeline(this.#pipelines.bound); // Operation
+            // boundEncoder.setVertexBuffer(0, this.resources.lineVertexBuffer);
+            // boundEncoder.setBindGroup(0, this.#bindGroups.sampler);
+            // boundEncoder.setBindGroup(1, this.#bindGroups.density[this.densityOutIdx]); // Input 1 (density is advected)
+            // boundEncoder.draw(5);
+            // boundEncoder.end();
             // this.densityOutIdx = 1 - this.densityOutIdx;
         }
 
+        webGpuContext.device.queue.submit([advectDiffuseCommandEncoder.finish()]);
+
+        // Projection command buffer
+        const projectCommandEncoder = webGpuContext.device.createCommandEncoder();
+
         // Projection
         // - divergence: v0/v1, s0 -> s2
-        const divergenceEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.scratch[2]); // Target texture
+        const divergenceEncoder = projectCommandEncoder.beginRenderPass(this.#renderPassDescriptors.scratch[2]); // Target texture
         divergenceEncoder.setPipeline(this.#pipelines.divergence); // Operation
         divergenceEncoder.setVertexBuffer(0, this.resources.quadVertexBuffer);
         divergenceEncoder.setBindGroup(0, this.#bindGroups.sampler);
@@ -197,24 +221,23 @@ export class SimulationApp {
         divergenceEncoder.end();
         
         // - jacobi: s2 constant; s0 -> s1, s1 -> s0, ...
-        this.resources.uniformValues.set([1, 4]);
-        webGpuContext.device.queue.writeBuffer(this.resources.uniformBuffer, 0, this.resources.uniformValues);
-        let sIn = 0;
-        let sOut = 1;
+        this.resources.jacobiUniformValues.set([1, 4]);
+        webGpuContext.device.queue.writeBuffer(this.resources.jacobiUniformBuffer, 0, this.resources.jacobiUniformValues);
+        let sIn = 0, sOut = 1;
         for (let k = 0; k < 40; k++) {
-            const jacobiEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.scratch[sOut]); // Target texture 
+            const jacobiEncoder = projectCommandEncoder.beginRenderPass(this.#renderPassDescriptors.scratch[sOut]); // Target texture 
             jacobiEncoder.setPipeline(this.#pipelines.jacobi); // Operation
             jacobiEncoder.setVertexBuffer(0, this.resources.quadVertexBuffer);
             jacobiEncoder.setBindGroup(0, this.#bindGroups.sampler);
             jacobiEncoder.setBindGroup(1, this.#bindGroups.scratch[2]); // Input 1 (divergence)
             jacobiEncoder.setBindGroup(2, this.#bindGroups.scratch[sIn]); // Input 2 (initial pressure field guess)
-            jacobiEncoder.setBindGroup(3, this.#bindGroups.uniform); // a, c values
+            jacobiEncoder.setBindGroup(3, this.#bindGroups.jacobiUniform); // a, c values
             jacobiEncoder.draw(6);
             jacobiEncoder.end();
             [sIn, sOut] = [sOut, sIn];
         }
         // - subtract gradient: 
-        const subgradEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.velocity[1-this.velocityOutIdx]); // Target texture
+        const subgradEncoder = projectCommandEncoder.beginRenderPass(this.#renderPassDescriptors.velocity[1-this.velocityOutIdx]); // Target texture
         subgradEncoder.setPipeline(this.#pipelines.advectVec2); // Operation
         subgradEncoder.setVertexBuffer(0, this.resources.quadVertexBuffer);
         subgradEncoder.setBindGroup(0, this.#bindGroups.sampler);
@@ -222,8 +245,9 @@ export class SimulationApp {
         subgradEncoder.setBindGroup(2, this.#bindGroups.scratch[sIn]); // Input 2 (working memory for pressure field)
         subgradEncoder.draw(6);
         subgradEncoder.end();
+        this.velocityOutIdx = 1 - this.velocityOutIdx;
 
-        webGpuContext.device.queue.submit([advectDiffuseCommandEncoder.finish()]);
+        webGpuContext.device.queue.submit([projectCommandEncoder.finish()]);
     }
 
     async getDensityOutputTextureView() {
@@ -235,7 +259,30 @@ export class SimulationApp {
     }
 
     async #initSimulationPipelines() {
-        // Off-screen quad vertex buffer
+        // Shader modules
+        const vertexShaderModule = webGpuContext.device.createShaderModule({
+            code: await fetch("./shaders/render.wgsl", {cache: "reload"}).then(r => r.text()),
+        });
+        const boundShaderModule = webGpuContext.device.createShaderModule({
+            code: await fetch("./shaders/bound.wgsl", {cache: "reload"}).then(r => r.text()),
+        });
+        const sourceShaderModule = webGpuContext.device.createShaderModule({
+            code: await fetch("./shaders/source.wgsl", {cache: "reload"}).then(r => r.text()),
+        });
+        const jacobiShaderModule = webGpuContext.device.createShaderModule({
+            code: await fetch("./shaders/jacobi.wgsl", {cache: "reload"}).then(r => r.text()),
+        });
+        const advectShaderModule = webGpuContext.device.createShaderModule({
+            code: await fetch("./shaders/advect.wgsl", {cache: "reload"}).then(r => r.text()),
+        });
+        const divergenceShaderModule = webGpuContext.device.createShaderModule({
+            code: await fetch("./shaders/divergence.wgsl", {cache: "reload"}).then(r => r.text()),
+        });
+        const subgradShaderModule = webGpuContext.device.createShaderModule({
+            code: await fetch("./shaders/subgrad.wgsl", {cache: "reload"}).then(r => r.text()),
+        });
+
+        // Main quad vertex buffer
         const quadVertices = new Float32Array([
             -1, -1, 0, 1,     0, 0,
             -1, 1, 0, 1,     0, 1,
@@ -269,44 +316,60 @@ export class SimulationApp {
             },
         ];
 
-        // Off-screen boundary line vertex buffer
-        const lineVertices = new Float32Array([
-            -1, -1, 0, 1,     0, 0,
-            -1, 1, 0, 1,     0, 1,
-            1, 1, 0, 1,     1, 1,
-            1, -1, 0, 1,     1, 0,
-            -1, -1, 0, 1,     0, 0,
-        ]);
-        this.resources.lineVertexBuffer = webGpuContext.device.createBuffer({
-            size: lineVertices.byteLength,
-            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        // setbound: Boundary edge vertex buffers
+        const boundaryVertices = [
+            new Float32Array([ // left
+                -1, -1, 0, 1,     0, 0,
+                -1, 1, 0, 1,     0, 1,
+            ]),
+            new Float32Array([ // right
+                1, -1, 0, 1,     1, 0,
+                1, 1, 0, 1,     1, 1,
+            ]),
+            new Float32Array([ // top
+                -1, 1, 0, 1,     0, 1,
+                1, 1, 0, 1,     1, 1,
+            ]),
+            new Float32Array([ // bottom
+                -1, -1, 0, 1,     0, 0,
+                1, -1, 0, 1,     1, 0,
+            ]),
+        ];
+        this.resources.boundaryVertexBuffers = boundaryVertices.map(
+            (vertices) => {
+                const buffer = webGpuContext.device.createBuffer({
+                    size: vertices.byteLength,
+                    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+                });
+                webGpuContext.device.queue.writeBuffer(buffer, 0, vertices, 0, vertices.length);
+                return buffer;
+            }
+        );
+        // setbound: Uniform buffers - scale, offset
+        this.resources.boundaryUvOffsets = [
+            [1,0], // left
+            [-1,0], // right
+            [0,1], // top
+            [0,-1], // bottom
+        ];
+        this.resources.boundaryUniformValues = new Float32Array(3);
+        this.resources.boundaryUniformBuffer = webGpuContext.device.createBuffer({
+            size: this.resources.boundaryUniformValues.byteLength,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
-        webGpuContext.device.queue.writeBuffer(this.resources.lineVertexBuffer, 0, lineVertices, 0, lineVertices.length);
 
-        // Shader modules
-        const vertexShaderModule = webGpuContext.device.createShaderModule({
-            code: await fetch("./shaders/render.wgsl", {cache: "reload"}).then(r => r.text()),
-        });
-        const setbndShaderModule = webGpuContext.device.createShaderModule({
-            code: await fetch("./shaders/setbound.wgsl", {cache: "reload"}).then(r => r.text()),
-        });
-        const addsrcShaderModule = webGpuContext.device.createShaderModule({
-            code: await fetch("./shaders/addsource.wgsl", {cache: "reload"}).then(r => r.text()),
-        });
-        const jacobiShaderModule = webGpuContext.device.createShaderModule({
-            code: await fetch("./shaders/jacobi.wgsl", {cache: "reload"}).then(r => r.text()),
-        });
-        const advectShaderModule = webGpuContext.device.createShaderModule({
-            code: await fetch("./shaders/advect.wgsl", {cache: "reload"}).then(r => r.text()),
-        });
-        const divergenceShaderModule = webGpuContext.device.createShaderModule({
-            code: await fetch("./shaders/divergence.wgsl", {cache: "reload"}).then(r => r.text()),
-        });
-        const subgradShaderModule = webGpuContext.device.createShaderModule({
-            code: await fetch("./shaders/subtractgradient.wgsl", {cache: "reload"}).then(r => r.text()),
+        // jacobi: Uniform buffer - a, c
+        this.resources.jacobiUniformValues = new Float32Array(2);
+        this.resources.jacobiUniformBuffer = webGpuContext.device.createBuffer({
+            size: this.resources.jacobiUniformValues.byteLength,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
-        // Textures and sampler
+        // Sampler and textures
+        this.resources.sampler = webGpuContext.device.createSampler({
+            magFilter: "linear",
+            minFilter: "linear",
+        });
         this.resources.velocityTextureArray = webGpuContext.device.createTexture({
             dimension: "2d",
             format: "rg32float",
@@ -328,10 +391,6 @@ export class SimulationApp {
             usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
             label: "scratch",
         });
-        this.resources.sampler = webGpuContext.device.createSampler({
-            magFilter: "linear",
-            minFilter: "linear",
-        });
 
         // Texture views
         this.resources.velocityTextureViews = [0,1,2].map(
@@ -343,13 +402,6 @@ export class SimulationApp {
         this.resources.scratchTextureViews = [0,1,2].map(
             (i) => this.resources.scratchTextureArray.createView({ dimension: "2d", baseArrayLayer: i })
         );
-
-        // Uniform buffer - a, c
-        this.resources.uniformValues = new Float32Array(2);
-        this.resources.uniformBuffer = webGpuContext.device.createBuffer({
-            size: this.resources.uniformValues.byteLength,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        });
         
         // Bind group layouts
         const samplerBindGroupLayout = webGpuContext.device.createBindGroupLayout({
@@ -415,19 +467,25 @@ export class SimulationApp {
                 ],
             }),
         );
-        this.#bindGroups.uniform = webGpuContext.device.createBindGroup({
+        this.#bindGroups.jacobiUniform = webGpuContext.device.createBindGroup({
             layout: uniformBindGroupLayout,
             entries: [
-                { binding: 0, resource: { buffer: this.resources.uniformBuffer } },
+                { binding: 0, resource: { buffer: this.resources.jacobiUniformBuffer } },
+            ],
+        });
+        this.#bindGroups.boundaryUniform = webGpuContext.device.createBindGroup({
+            layout: uniformBindGroupLayout,
+            entries: [
+                { binding: 0, resource: { buffer: this.resources.boundaryUniformBuffer } },
             ],
         });
 
-        // Simulaton render #pipelines
+        // Simulaton render pipelines
         const pipelineLayout = webGpuContext.device.createPipelineLayout({
             bindGroupLayouts: [samplerBindGroupLayout, textureBindGroupLayout, textureBindGroupLayout],
         });
-        const setbndPipelineLayout = webGpuContext.device.createPipelineLayout({
-            bindGroupLayouts: [samplerBindGroupLayout, textureBindGroupLayout],
+        const boundPipelineLayout = webGpuContext.device.createPipelineLayout({
+            bindGroupLayouts: [samplerBindGroupLayout, textureBindGroupLayout, uniformBindGroupLayout],
         });
         const jacobiPipelineLayout = webGpuContext.device.createPipelineLayout({
             bindGroupLayouts: [samplerBindGroupLayout, textureBindGroupLayout, textureBindGroupLayout, uniformBindGroupLayout],
@@ -440,10 +498,10 @@ export class SimulationApp {
 
         const constants = { dt: this.settings.dt, M: this.settings.M, N: this.settings.N };
         
-        this.#pipelines.setbnd = await this.#createSimulationPipeline(setbndPipelineLayout, vertexStageDescriptor, setbndShaderModule, "set_bound", "r32float", constants, "line-strip");
-        this.#pipelines.setbndVec2 = await this.#createSimulationPipeline(setbndPipelineLayout, vertexStageDescriptor, setbndShaderModule, "set_bound_vec2", "rg32float", constants, "line-strip");
-        this.#pipelines.addsrc = await this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, addsrcShaderModule, "add_source", "r32float", constants, "triangle-list");
-        this.#pipelines.addsrcVec2 = await this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, addsrcShaderModule, "add_source_vec2", "rg32float", constants, "triangle-list");
+        this.#pipelines.bound = await this.#createSimulationPipeline(boundPipelineLayout, vertexStageDescriptor, boundShaderModule, "set_bound", "r32float", constants, "line-list");
+        this.#pipelines.boundVec2 = await this.#createSimulationPipeline(boundPipelineLayout, vertexStageDescriptor, boundShaderModule, "set_bound_vec2", "rg32float", constants, "line-list");
+        this.#pipelines.source = await this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, sourceShaderModule, "add_source", "r32float", constants, "triangle-list");
+        this.#pipelines.sourceVec2 = await this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, sourceShaderModule, "add_source_vec2", "rg32float", constants, "triangle-list");
         this.#pipelines.jacobi = await this.#createSimulationPipeline(jacobiPipelineLayout, vertexStageDescriptor, jacobiShaderModule, "jacobi", "r32float", constants, "triangle-list");
         this.#pipelines.jacobiVec2 = await this.#createSimulationPipeline(jacobiPipelineLayout, vertexStageDescriptor, jacobiShaderModule, "jacobi_vec2", "rg32float", constants, "triangle-list");
         this.#pipelines.advect = await this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, advectShaderModule, "advect", "r32float", constants, "triangle-list");

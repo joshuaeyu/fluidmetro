@@ -7,16 +7,16 @@ import { SimulationApp } from "./fluids/simulation.js";
 import { delay } from "./fluids/util.js";
 
 const canvas = document.getElementById("canvas");
-await webGpuContext.init(canvas, false);
+await webGpuContext.init(canvas, true);
 
 const settings = {
     M: 1000, // Doesn't include boundary
     N: 1000, // Doesn't include boundary
     dt: 1,
-    diffusivity: 0.0000001,
-    dissipation: 0.995,
-    viscosity: 1,
-    hdr: false,
+    diffusivity: 0.00000000001,
+    dissipation: 0.999,
+    viscosity: 10,
+    hdr: true,
 };
 
 const simulator = await SimulationApp.build(settings);
@@ -34,31 +34,32 @@ const densitySource = new Float32Array((settings.M+2) * (settings.N+2));
 //     }
 // }
 const velocitySource = new Float32Array((settings.M+2) * (settings.N+2) * 2);
-for (let i = 0; i < settings.N+2; i++) {
-    for (let j = 0; j < settings.M+2; j++) {
-        const idx = i * (settings.M+2) + j;
-        velocitySource[2*idx] = -0.00003;
-        velocitySource[2*idx+1] = -0.00001;
-    }
-}
+// for (let i = 0; i < settings.N+2; i++) {
+//     for (let j = 0; j < settings.M+2; j++) {
+//         const idx = i * (settings.M+2) + j;
+//         velocitySource[2*idx] = 0.001;
+//         velocitySource[2*idx+1] = 0;
+//     }
+// }
 
 let vehicles = await fetchVehiclePositions();
 for (const [_, vehicle] of Object.entries(vehicles)) {
     const x = Math.floor(calcX(vehicle.longitude) * (settings.M + 2));
     const y = Math.floor(calcY(vehicle.latitude) * (settings.N + 2));
     const idx = y * (settings.M+2) + x;
-    densitySource[idx] = 500;
-    // const theta = radians(-(vehicle.bearing + 90.0));
-    // velocitySource[2*idx] = Math.cos(theta) * 0.0001;
-    // velocitySource[2*idx+1] = Math.sin(theta) * 0.0001;
+    densitySource[idx] = 50;
+    const theta = radians(-(vehicle.bearing + 90.0));
+    velocitySource[2*idx] = Math.cos(theta) * vehicle.speed * 0.2;
+    velocitySource[2*idx+1] = Math.sin(theta) * vehicle.speed * 0.2;
 }
 
 await simulator.addSourceDensity(densitySource);
 await simulator.addSourceVelocity(velocitySource);
-for (let i = 0; i < 100000; i++) {
+for (let i = 0; i < 1000; i++) {
     await simulator.densityStep();
-    // await simulator.velocityStep();
+    await simulator.velocityStep();
     const tv = await simulator.getDensityOutputTextureView();
+    // const tv = await simulator.getVelocityOutputTextureView();
     renderer.render(tv);
-    await delay(1);
+    await delay(10);
 }

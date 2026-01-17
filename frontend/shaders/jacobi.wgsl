@@ -7,11 +7,11 @@ struct VertexOut {
 @group(1) @binding(0) var x0_tex: texture_2d<f32>;
 @group(2) @binding(0) var x_tex: texture_2d<f32>;
 
-struct UniformStruct {
+struct JacobiUniforms {
     a: f32,
     c: f32
 };
-@group(3) @binding(0) var<uniform> uniforms: UniformStruct;
+@group(3) @binding(0) var<uniform> uniforms: JacobiUniforms;
 
 override dt: f32;
 override M: f32;

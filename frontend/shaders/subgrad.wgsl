@@ -16,14 +16,16 @@ override N: f32;
 fn subtract_gradient(
     fragIn: VertexOut
 ) -> @location(0) vec2f {
-    let i = fragIn.position.x;
-    let j = fragIn.position.y;
-    let p_e = textureSample(grad_tex, tex_sampler, vec2(i,j+1)).x;
-    let p_w = textureSample(grad_tex, tex_sampler, vec2(i,j-1)).x;
-    let p_n = textureSample(grad_tex, tex_sampler, vec2(i+1,j)).y;
-    let p_s = textureSample(grad_tex, tex_sampler, vec2(i-1,j)).y;
+    let i = fragIn.uv.x;
+    let j = fragIn.uv.y;
+    let di = 1 / (M + 2);
+    let dj = 1 / (N + 2);
+    let p_e = textureSample(grad_tex, tex_sampler, vec2(i+di,j)).x;
+    let p_w = textureSample(grad_tex, tex_sampler, vec2(i-di,j)).x;
+    let p_n = textureSample(grad_tex, tex_sampler, vec2(i,j+dj)).y;
+    let p_s = textureSample(grad_tex, tex_sampler, vec2(i,j-dj)).y;
     var result = textureSample(w_tex, tex_sampler, vec2(i,j)).xy;
-    result.x -= 0.5 * (p_e - p_w);
-    result.y -= 0.5 * (p_n - p_s);
+    result.x -= 0.5 * M * (p_e - p_w);
+    result.y -= 0.5 * N * (p_n - p_s);
     return result;
 }

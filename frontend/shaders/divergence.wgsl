@@ -24,6 +24,7 @@ fn divergence(
     let u_w = textureSample(w_tex, tex_sampler, vec2(i-di,j)).x;
     let v_n = textureSample(w_tex, tex_sampler, vec2(i,j+dj)).y;
     let v_s = textureSample(w_tex, tex_sampler, vec2(i,j-dj)).y;
-    let result = -0.5 * (u_e - u_w + v_n - v_s) / N;
+    let result = -0.5 * (u_e - u_w + v_n - v_s) / sqrt(M*N);
+    
     return result;
 }
