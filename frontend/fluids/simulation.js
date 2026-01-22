@@ -108,7 +108,7 @@ export class SimulationApp {
         const c = 1 + 4 * a / this.settings.dissipation;
         this.resources.jacobiUniformValues.set([a, c]);
         webGpuContext.device.queue.writeBuffer(this.resources.jacobiUniformBuffer, 0, this.resources.jacobiUniformValues);
-        for (let k = 0; k < 40; k++) {
+        for (let k = 0; k < 30; k++) {
             // - diffuse: d2 constant; d0 -> d1, d1 -> d0, ...
             const diffusionEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.density[1-this.densityOutIdx]); // Target texture
             diffusionEncoder.setPipeline(this.#pipelines.jacobi); // Operation
@@ -181,7 +181,7 @@ export class SimulationApp {
         const c = 1 + 4 * a;
         this.resources.jacobiUniformValues.set([a, c]);
         webGpuContext.device.queue.writeBuffer(this.resources.jacobiUniformBuffer, 0, this.resources.jacobiUniformValues);
-        for (let k = 0; k < 40; k++) {
+        for (let k = 0; k < 30; k++) {
             // - diffuse: v2 constant; v0 -> v1, v1 -> v0, ...
             const diffusionEncoder = advectDiffuseCommandEncoder.beginRenderPass(this.#renderPassDescriptors.velocity[1-this.velocityOutIdx]); // Target texture
             diffusionEncoder.setPipeline(this.#pipelines.jacobiVec2); // Operation
@@ -224,7 +224,7 @@ export class SimulationApp {
         this.resources.jacobiUniformValues.set([1, 4]);
         webGpuContext.device.queue.writeBuffer(this.resources.jacobiUniformBuffer, 0, this.resources.jacobiUniformValues);
         let sIn = 0, sOut = 1;
-        for (let k = 0; k < 40; k++) {
+        for (let k = 0; k < 30; k++) {
             const jacobiEncoder = projectCommandEncoder.beginRenderPass(this.#renderPassDescriptors.scratch[sOut]); // Target texture 
             jacobiEncoder.setPipeline(this.#pipelines.jacobi); // Operation
             jacobiEncoder.setVertexBuffer(0, this.resources.quadVertexBuffer);
