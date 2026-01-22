@@ -29,7 +29,10 @@ const velocitySource = new Float32Array((settings.M+2) * (settings.N+2) * 2);
 // HTML
 const settingsForm = document.getElementById("settings");
 for (const radio of settingsForm.elements["playback-mode"]) {
-    radio.addEventListener("change", initUI);
+    radio.addEventListener("change", () => { 
+        initUI(); 
+        simulator.resetTextures(); 
+    });
 }
 const batchSettingsFieldset = document.getElementById("batch-settings");
 const batchIdSelect = document.getElementById("batch-id");
