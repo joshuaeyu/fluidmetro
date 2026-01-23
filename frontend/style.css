@@ -13,18 +13,42 @@ html, body {
 
 #header {
     position: absolute;
-    margin: 8px;
+    border-radius: 0.5rem;
+    margin: 4px;
+    padding: 8px;
+    background-color: rgba(0,0,0,0.3);
 }
 #header > h2 {
-    margin-top: 0;
+    margin-bottom: 0.5rem;
 }
-
 
 fieldset {
     border: none;
 }
+input[type="text"] {
+    background-color: rgba(255,255,255,0.15);
+    color: white;
+    border: none;
+    text-align: right;
+    padding: 1px 4px;
+    margin: 0px 4px;
+}
 input[type="range"] {
     width: 200px;
+}
+label {
+    padding: 1px 1px;
+}
+select {
+    background-color: rgba(255,255,255,0.15);
+    color: white;
+    border: none;
+}
+button {
+    background-color: rgba(255,255,255,0.15);
+    color: white;
+    border: none;
+    padding: 4px;
 }
 
 #canvas-container {
