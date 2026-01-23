@@ -18,6 +18,7 @@ MAX_NUM_RECORDS: int = 1_000_000
 BATCH_ID: str
 MAX_BATCH_SIZE: int = 100_000
 
+cache_data: dict[str, VehiclePosition] = {}
 batch_size: int = 0
 
 def fetch_vehicle_positions() -> Message:
@@ -67,12 +68,18 @@ def calc_apparent_velocity(vehicles_curr: dict[str, VehiclePosition], vehicles_p
         vp_curr.apparent_velocity_long = (vp_prev.longitude - vp_curr.longitude) / dt
 
 def save_to_cache(vehicles: dict[str, VehiclePosition]) -> None:
+  global cache_data
   with open(CACHE_PATH, 'wb') as file:
+    cache_data = vehicles
     pkl.dump(vehicles, file)
 
 def load_from_cache() -> dict[str, VehiclePosition]:
-  with open(CACHE_PATH, 'rb') as file:
-    return pkl.load(file)
+  global cache_data
+  if cache_data:
+    return cache_data
+  else:
+    with open(CACHE_PATH, 'rb') as file:
+      return pkl.load(file)
 
 def init() -> None:
   global BATCH_ID
