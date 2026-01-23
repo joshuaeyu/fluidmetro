@@ -95,7 +95,7 @@ export class RenderApp {
 
         // Shader modules
         const shaderModule = webGpuContext.device.createShaderModule({
-            code: await fetch("./shaders/render.wgsl", {cache: "reload"}).then(r => r.text()),
+            code: await fetch("./fluids/shaders/render.wgsl", {cache: "reload"}).then(r => r.text()),
         })
 
         // Texture and sampler
