@@ -21,7 +21,7 @@ export class SimulationApp {
         return app;
     }
 
-    resetTextures() {
+    reset() {
         const commandEncoder = webGpuContext.device.createCommandEncoder();
         for (const descriptors of Object.values(this.#renderPassDescriptors)) {
             for (const descriptor of descriptors) {
@@ -34,7 +34,7 @@ export class SimulationApp {
         this.velocityOutIdx = 0;
     }
 
-    async addSourceDensity(sourceDataArray) {
+    async addDensitySource(sourceDataArray) {
         // Use densityTextureArray[2] to temporarily hold the source data
         webGpuContext.device.queue.writeTexture(
             { 
@@ -63,7 +63,7 @@ export class SimulationApp {
         this.densityOutIdx = 1 - this.densityOutIdx;
     }
 
-    async addSourceVelocity(sourceDataArray) {
+    async addVelocitySource(sourceDataArray) {
         // Use velocityTextureArray[2] to temporarily hold the source data
         webGpuContext.device.queue.writeTexture(
             { 

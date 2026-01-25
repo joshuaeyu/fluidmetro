@@ -13,6 +13,10 @@ const NORTH_BORDER = 37.833;
 const SOUTH_BORDER = 37.700;
 const EAST_BORDER = -122.359;
 const WEST_BORDER = -122.517;
+export const LONGITUDE_SPAN = NORTH_BORDER - SOUTH_BORDER;
+export const LATITUDE_SPAN = EAST_BORDER - WEST_BORDER;
+// export const milesPerDegreeLatitude = 54.69;
+// export const milesPerDegreeLongitude = 69.00;
 
 // Coordinate functions
 export function calcX(longitude) {

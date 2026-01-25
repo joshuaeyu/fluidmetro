@@ -1,6 +1,6 @@
 "use strict";
 
-import { calcAdjustedX, calcAdjustedY, fetchBatchIds, fetchVehiclePositions, getVehicleType, VehicleType } from "./client.js"
+import { calcAdjustedX, calcAdjustedY, fetchBatchIds, fetchVehiclePositions, LATITUDE_SPAN, LONGITUDE_SPAN, getVehicleType, VehicleType } from "./client.js"
 import { webGpuContext } from "./fluids/context.js";
 import { RenderApp } from "./fluids/render.js";
 import { SimulationApp } from "./fluids/simulation.js";
@@ -19,13 +19,13 @@ const settings = {
     M: canvas.width - 2,
     N: canvas.height - 2,
     hdr: hdr,
-    dt: 1,
+    dt: 0.001,
     // Dynamic
-    diffusivity: 0.0000005,
+    diffusivity: 0.00005,
     dissipation: 0.9,
-    viscosity: 0.000004,
-    density: 50,
-    velocity: 5, 
+    viscosity: 0.0005,
+    density: 5,
+    velocity: 10, 
 };
 
 const simulator = await SimulationApp.build(settings);
@@ -33,7 +33,9 @@ const renderer = await RenderApp.build(settings);
 
 const densitySource = new Float32Array((settings.M+2) * (settings.N+2));
 const velocitySource = new Float32Array((settings.M+2) * (settings.N+2) * 2);
-const scaleFactor = (Math.min(settings.M+2, settings.N+2) / 100) ** 2;
+
+const densityFactor = Math.sqrt(settings.M * settings.N);
+const velocityFactor = Math.sqrt(settings.M * settings.N) * 1000;
 
 // HTML
 const settingsForm = document.getElementById("settings");
@@ -50,7 +52,7 @@ const playbackMode = playbackSettingsForm.elements["playback-mode"];
 for (const radio of playbackMode) {
     radio.addEventListener("change", () => { 
         initUI(); 
-        simulator.resetTextures(); 
+        simulator.reset(); 
     });
 }
 const batchSettingsFieldset = document.getElementById("batch-settings");
@@ -108,9 +110,9 @@ for (let i = 0; i < 10000; i++) {
                 const x = Math.floor(calcAdjustedX(vehicle.longitude) * (settings.M + 2));
                 const y = Math.floor(calcAdjustedY(vehicle.latitude) * (settings.N + 2));
                 const idx = y * (settings.M+2) + x;
-                densitySource[idx] = settings.density * scaleFactor;
-                velocitySource[2*idx] = settings.velocity * vehicle.apparent_velocity_long * scaleFactor;
-                velocitySource[2*idx+1] = settings.velocity * vehicle.apparent_velocity_lat * scaleFactor;
+                densitySource[idx] = settings.density * densityFactor;
+                velocitySource[2*idx] = settings.velocity * vehicle.apparent_velocity_long / LONGITUDE_SPAN * velocityFactor;
+                velocitySource[2*idx+1] = settings.velocity * vehicle.apparent_velocity_lat / LATITUDE_SPAN * velocityFactor;
             }
         }
     } else if (playbackMode.value === "history") {
@@ -148,16 +150,16 @@ for (let i = 0; i < 10000; i++) {
                 const x = Math.floor(calcAdjustedX(vehicle.longitude) * (settings.M + 2));
                 const y = Math.floor(calcAdjustedY(vehicle.latitude) * (settings.N + 2));
                 const idx = y * (settings.M+2) + x;
-                densitySource[idx] = settings.density * scaleFactor;
-                velocitySource[2*idx] = settings.velocity * vehicle.apparent_velocity_long * scaleFactor;
-                velocitySource[2*idx+1] = settings.velocity * vehicle.apparent_velocity_lat * scaleFactor;
+                densitySource[idx] = settings.density * densityFactor;
+                velocitySource[2*idx] = settings.velocity * vehicle.apparent_velocity_long / LONGITUDE_SPAN * velocityFactor;
+                velocitySource[2*idx+1] = settings.velocity * vehicle.apparent_velocity_lat / LATITUDE_SPAN * velocityFactor;
             }
         }
     }
 
     // Simulate
-    await simulator.addSourceVelocity(velocitySource);
-    await simulator.addSourceDensity(densitySource);
+    await simulator.addVelocitySource(velocitySource);
+    await simulator.addDensitySource(densitySource);
 
     await simulator.velocityStep();
     await simulator.densityStep();

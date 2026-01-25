@@ -16,8 +16,8 @@ fn vertex_main (
 @group(0) @binding(0) var output_sampler: sampler;
 @group(0) @binding(1) var output_map: texture_2d<f32>;
 
-const max_val = 250.0;
-const fracs = vec4(0.1, 0.45, 0.45, 0);
+const max_val = 1.0;
+const fracs = vec4f(0.1, 0.6, 0.3, 0);
 const widths = max_val * fracs;
 
 @fragment
