@@ -23,8 +23,8 @@ const settings = {
     // Dynamic
     diffusivity: 0.00005,
     dissipation: 0.9,
-    viscosity: 0.0005,
-    density: 5,
+    viscosity: 0.001,
+    density: 20,
     velocity: 10, 
 };
 
@@ -34,8 +34,9 @@ const renderer = await RenderApp.build(settings);
 const densitySource = new Float32Array((settings.M+2) * (settings.N+2));
 const velocitySource = new Float32Array((settings.M+2) * (settings.N+2) * 2);
 
-const densityFactor = Math.sqrt(settings.M * settings.N);
-const velocityFactor = Math.sqrt(settings.M * settings.N) * 1000;
+const densityFactor = settings.M * settings.N / 10000;
+const velocityFactorX = settings.M * settings.N * settings.M / 1000;
+const velocityFactorY = settings.M * settings.N * settings.N / 1000;
 
 // HTML
 const settingsForm = document.getElementById("settings");
@@ -76,98 +77,67 @@ initSimulationSettings();
 await initUI();
 
 // Main logic
-for (let i = 0; i < 10000; i++) {
+let t = 0;
+while (true) {
     await delay(10);
     if (document.hidden) {
         continue;
     }
+    // const startTime = performance.now();
 
-    if (playbackMode.value === "live") {
-        // ========== Live playback ==========
-        if (i % 100 === 0) {
-            densitySource.fill(0);
-            velocitySource.fill(0);
-            
-            const vehicles = await fetchVehiclePositions();
-            for (const vehicle of Object.values(vehicles)) {
-                switch (getVehicleType(vehicle)) {
-                    case VehicleType.Bus:
-                        if (!vehicleSettingsForm.elements.bus.checked) {
-                            continue;
-                        }
-                        break;
-                    case VehicleType.Metro:
-                        if (!vehicleSettingsForm.elements.metro.checked) {
-                            continue;
-                        }
-                        break;
-                    case VehicleType.Cableway:
-                        if (!vehicleSettingsForm.elements.cableway.checked) {
-                            continue;
-                        }
-                        break;
-                }
-                const x = Math.floor(calcAdjustedX(vehicle.longitude) * (settings.M + 2));
-                const y = Math.floor(calcAdjustedY(vehicle.latitude) * (settings.N + 2));
-                const idx = y * (settings.M+2) + x;
-                densitySource[idx] = settings.density * densityFactor;
-                velocitySource[2*idx] = settings.velocity * vehicle.apparent_velocity_long / LONGITUDE_SPAN * velocityFactor;
-                velocitySource[2*idx+1] = settings.velocity * vehicle.apparent_velocity_lat / LATITUDE_SPAN * velocityFactor;
-            }
-        }
-    } else if (playbackMode.value === "history") {
-        // ========== History playback ==========
-        while (!dataframes) {
-            await delay(10);
-        }
+    // Add density and velocity sources every 100 frames
+    if (t % 100 === 0) {
+        densitySource.fill(0);
+        velocitySource.fill(0);
         
-        if (i % 100 === 0) {
-            densitySource.fill(0);
-            velocitySource.fill(0);
-            
+        let vehicles;
+        if (playbackMode.value === "live") {
+            vehicles = await fetchVehiclePositions();
+        } else if (playbackMode.value === "history") {    
             timelineInput.value = (parseInt(timelineInput.value) + 1) % timelineInput.max;
-            const vehicles = Object.values(dataframes)[timelineInput.value];
             const timestampFetch = Object.keys(dataframes)[timelineInput.value];
             timelineLabel.textContent = (new Date(timestampFetch * 1000)).toLocaleString("en-us", { timeZone: "America/Los_Angeles", timeZoneName: "short" });
-            for (const vehicle of Object.values(vehicles)) {
-                switch (getVehicleType(vehicle)) {
-                    case VehicleType.Bus:
-                        if (!vehicleSettingsForm.elements.bus.checked) {
-                            continue;
-                        }
-                        break;
-                    case VehicleType.Metro:
-                        if (!vehicleSettingsForm.elements.metro.checked) {
-                            continue;
-                        }
-                        break;
-                    case VehicleType.Cableway:
-                        if (!vehicleSettingsForm.elements.cableway.checked) {
-                            continue;
-                        }
-                        break;
-                }
-                const x = Math.floor(calcAdjustedX(vehicle.longitude) * (settings.M + 2));
-                const y = Math.floor(calcAdjustedY(vehicle.latitude) * (settings.N + 2));
-                const idx = y * (settings.M+2) + x;
-                densitySource[idx] = settings.density * densityFactor;
-                velocitySource[2*idx] = settings.velocity * vehicle.apparent_velocity_long / LONGITUDE_SPAN * velocityFactor;
-                velocitySource[2*idx+1] = settings.velocity * vehicle.apparent_velocity_lat / LATITUDE_SPAN * velocityFactor;
+            vehicles = Object.values(dataframes)[timelineInput.value];
+        }
+        for (const vehicle of Object.values(vehicles)) {
+            switch (getVehicleType(vehicle)) {
+                case VehicleType.Bus:
+                    if (!vehicleSettingsForm.elements.bus.checked) {
+                        continue;
+                    }
+                    break;
+                case VehicleType.Metro:
+                    if (!vehicleSettingsForm.elements.metro.checked) {
+                        continue;
+                    }
+                    break;
+                case VehicleType.Cableway:
+                    if (!vehicleSettingsForm.elements.cableway.checked) {
+                        continue;
+                    }
+                    break;
             }
+            const x = Math.floor(calcAdjustedX(vehicle.longitude) * (settings.M + 2));
+            const y = Math.floor(calcAdjustedY(vehicle.latitude) * (settings.N + 2));
+            const idx = y * (settings.M+2) + x;
+            densitySource[idx] = settings.density * densityFactor;
+            velocitySource[2*idx] = settings.velocity * vehicle.apparent_velocity_long / LONGITUDE_SPAN * velocityFactorX;
+            velocitySource[2*idx+1] = settings.velocity * vehicle.apparent_velocity_lat / LATITUDE_SPAN * velocityFactorY;
         }
     }
 
     // Simulate
     await simulator.addVelocitySource(velocitySource);
     await simulator.addDensitySource(densitySource);
-
     await simulator.velocityStep();
     await simulator.densityStep();
 
     // Render to canvas
-    const tv = await simulator.getDensityOutputTextureView();
-    // const tv = await simulator.getVelocityOutputTextureView();
+    const tv = simulator.getDensityOutputTextureView();
+    // const tv = simulator.getVelocityOutputTextureView();
     renderer.render(tv);
+    
+    t++;
 } 
 
 function initSimulationSettings() {
