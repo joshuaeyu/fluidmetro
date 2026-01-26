@@ -17,7 +17,7 @@ export class SimulationApp {
 
     static async build(settings) {
         const app = new SimulationApp(settings);
-        await app.#initSimulationPipelines();
+        await app.#initSimulation();
         return app;
     }
 
@@ -263,15 +263,15 @@ export class SimulationApp {
         webGpuContext.device.queue.submit([projectCommandEncoder.finish()]);
     }
 
-    async getDensityOutputTextureView() {
+    getDensityOutputTextureView() {
         return this.resources.densityTextureViews[this.densityOutIdx];
     }
 
-    async getVelocityOutputTextureView() {
+    getVelocityOutputTextureView() {
         return this.resources.velocityTextureViews[this.velocityOutIdx];
     }
 
-    async #initSimulationPipelines() {
+    async #initSimulation() {
         // Shader modules
         const vertexShaderModule = webGpuContext.device.createShaderModule({
             code: await fetch("./fluids/shaders/render.wgsl", {cache: "reload"}).then(r => r.text()),
@@ -511,16 +511,16 @@ export class SimulationApp {
 
         const constants = { dt: this.settings.dt, M: this.settings.M, N: this.settings.N };
         
-        this.#pipelines.bound = await this.#createSimulationPipeline(boundPipelineLayout, vertexStageDescriptor, boundShaderModule, "set_bound", "r32float", constants, "line-list");
-        this.#pipelines.boundVec2 = await this.#createSimulationPipeline(boundPipelineLayout, vertexStageDescriptor, boundShaderModule, "set_bound_vec2", "rg32float", constants, "line-list");
-        this.#pipelines.source = await this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, sourceShaderModule, "add_source", "r32float", constants, "triangle-list");
-        this.#pipelines.sourceVec2 = await this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, sourceShaderModule, "add_source_vec2", "rg32float", constants, "triangle-list");
-        this.#pipelines.jacobi = await this.#createSimulationPipeline(jacobiPipelineLayout, vertexStageDescriptor, jacobiShaderModule, "jacobi", "r32float", constants, "triangle-list");
-        this.#pipelines.jacobiVec2 = await this.#createSimulationPipeline(jacobiPipelineLayout, vertexStageDescriptor, jacobiShaderModule, "jacobi_vec2", "rg32float", constants, "triangle-list");
-        this.#pipelines.advect = await this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, advectShaderModule, "advect", "r32float", constants, "triangle-list");
-        this.#pipelines.advectVec2 = await this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, advectShaderModule, "advect_vec2", "rg32float", constants, "triangle-list");
-        this.#pipelines.divergence = await this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, divergenceShaderModule, "divergence", "r32float", constants, "triangle-list");
-        this.#pipelines.subgrad = await this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, subgradShaderModule, "subtract_gradient", "rg32float", constants, "triangle-list");
+        this.#pipelines.bound = this.#createSimulationPipeline(boundPipelineLayout, vertexStageDescriptor, boundShaderModule, "set_bound", "r32float", constants, "line-list");
+        this.#pipelines.boundVec2 = this.#createSimulationPipeline(boundPipelineLayout, vertexStageDescriptor, boundShaderModule, "set_bound_vec2", "rg32float", constants, "line-list");
+        this.#pipelines.source = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, sourceShaderModule, "add_source", "r32float", constants, "triangle-list");
+        this.#pipelines.sourceVec2 = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, sourceShaderModule, "add_source_vec2", "rg32float", constants, "triangle-list");
+        this.#pipelines.jacobi = this.#createSimulationPipeline(jacobiPipelineLayout, vertexStageDescriptor, jacobiShaderModule, "jacobi", "r32float", constants, "triangle-list");
+        this.#pipelines.jacobiVec2 = this.#createSimulationPipeline(jacobiPipelineLayout, vertexStageDescriptor, jacobiShaderModule, "jacobi_vec2", "rg32float", constants, "triangle-list");
+        this.#pipelines.advect = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, advectShaderModule, "advect", "r32float", constants, "triangle-list");
+        this.#pipelines.advectVec2 = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, advectShaderModule, "advect_vec2", "rg32float", constants, "triangle-list");
+        this.#pipelines.divergence = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, divergenceShaderModule, "divergence", "r32float", constants, "triangle-list");
+        this.#pipelines.subgrad = this.#createSimulationPipeline(pipelineLayout, vertexStageDescriptor, subgradShaderModule, "subtract_gradient", "rg32float", constants, "triangle-list");
 
         // Simulation render pass descriptors
         this.#renderPassDescriptors.velocity = [0,1,2].map(
@@ -546,8 +546,8 @@ export class SimulationApp {
         );
     }
 
-    async #createSimulationPipeline(layout, vertex, module, entryPoint, format, constants, topology) {
-        const pipeline = webGpuContext.device.createRenderPipelineAsync({
+    #createSimulationPipeline(layout, vertex, module, entryPoint, format, constants, topology) {
+        const pipeline = webGpuContext.device.createRenderPipeline({
             layout: layout,
             vertex: vertex,
             fragment: {
