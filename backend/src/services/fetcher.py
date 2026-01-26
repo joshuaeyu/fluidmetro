@@ -1,5 +1,6 @@
 import pathlib
 import pickle as pkl
+import sys
 import time
 from typing import Sequence
 
@@ -13,7 +14,7 @@ from ..db.models import VehiclePosition
 from ..util.util import read_api_key
 
 CACHE_PATH: pathlib.Path = pathlib.Path(__file__).parents[2].joinpath("data/cache.pkl").resolve()
-FETCH_INTERVAL: int = 10
+FETCH_INTERVAL: int = 15
 MAX_NUM_RECORDS: int = 1_000_000
 BATCH_ID: str
 MAX_BATCH_SIZE: int = 100_000
@@ -81,15 +82,16 @@ def load_from_cache() -> dict[str, VehiclePosition]:
     with open(CACHE_PATH, 'rb') as file:
       return pkl.load(file)
 
-def init() -> None:
+def init(drop_all) -> None:
   global BATCH_ID
   BATCH_ID = str(int(time.time()))
-  create_db_and_tables()
+  create_db_and_tables(drop_all)
 
 # While running, fetch positions every FETCH_INTERVAL seconds and update database and cache
 def run() -> None:
   global batch_size
-  while True:
+  start = time.time()
+  while time.time() - start < 3600:
     # Fetch vehicle positions
     msg = fetch_vehicle_positions()
     vehicles = convert_msg_to_objects(msg)
@@ -118,9 +120,16 @@ def run() -> None:
     # Sleep
     print(f"Sleeping for {FETCH_INTERVAL} seconds...")
     time.sleep(FETCH_INTERVAL)
+  print(f"Fetcher was automatically closed after 3600 seconds.")
 
 if __name__ == "__main__":
-  init()
+  drop_all = False
+  if len(sys.argv) > 1:
+    if sys.argv[1] == "--drop-all":
+      drop_all = True
+    else:
+      raise ValueError("Specify --drop-all to drop all tables from the database before running the fetcher.")
+  init(drop_all)
   run()
 
 # message (FeedMessage)

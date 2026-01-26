@@ -19,6 +19,7 @@ Session = sessionmaker(engine)
 # with Session().begin() as session
 
 # Create database and table
-def create_db_and_tables():
-    # Base.metadata.drop_all(engine)
+def create_db_and_tables(drop_all=False):
+    if drop_all:
+        Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
